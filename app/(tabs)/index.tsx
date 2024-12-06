@@ -1,74 +1,86 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Button, Text, StyleSheet } from 'react-native';
+import { Audio } from 'expo-av';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function App() {
+    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [message, setMessage] = useState('Presiona para grabar');
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+    const startRecording = async () => {
+        try {
+            await Audio.requestPermissionsAsync();
+            await Audio.setAudioModeAsync({ allowsRecordingIOS: true });
+            const { recording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+            setRecording(recording);
+            setMessage('Grabando...');
+        } catch (err) {
+            console.error('Error al iniciar la grabación', err);
+        }
+    };
+
+    const stopRecording = async () => {
+        setMessage('Procesando grabación...');
+        recording?.stopAndUnloadAsync();
+        const uri = recording?.getURI();
+        const { sound } = await recording?.createNewLoadedSoundAsync();
+        setSound(sound);
+        setRecording(null);
+        setMessage('Grabación lista para reproducir');
+        console.log('Grabación guardada en:', uri);
+    };
+
+    const playSound = async () => {
+        try {
+            await sound?.replayAsync();
+        } catch (err) {
+            console.error('Error al reproducir', err);
+        }
+    };
+
+    return (
+        <View style={styles.container}>
+            <Text style={styles.message}>{message}</Text>
+            <View style={styles.buttonContainer}>
+                {!recording ? (
+                    <Button title="Iniciar Grabación" onPress={startRecording} color="#4CAF50" />
+                ) : (
+                    <Button title="Detener Grabación" onPress={stopRecording} color="#F44336" />
+                )}
+            </View>
+            {sound && (
+                <View style={styles.buttonContainer}>
+                    <Button title="Reproducir Grabación" onPress={playSound} color="#2196F3" />
+                </View>
+            )}
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+    container: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: '#F5F5F5',
+    },
+    message: {
+        fontSize: 18,
+        marginBottom: 20,
+        textAlign: 'center',
+        color: '#333',
+    },
+    buttonContainer: {
+        width: '80%',
+        marginVertical: 10, // Separación entre botones
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    button: {
+        height: 60, // Altura del botón
+        justifyContent: 'center',
+    },
 });
