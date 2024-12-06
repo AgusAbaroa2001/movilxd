@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Button, Text, StyleSheet } from 'react-native';
+import { View, Button, Text, StyleSheet, Alert } from 'react-native';
 import { Audio } from 'expo-av';
+import * as Sharing from 'expo-sharing';
 
 export default function App() {
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [message, setMessage] = useState('Presiona para grabar');
+    const [audioUri, setAudioUri] = useState<string | null>(null);
 
     const startRecording = async () => {
         try {
@@ -15,34 +15,51 @@ export default function App() {
                 Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
             setRecording(recording);
-            setMessage('Grabando...');
+            Alert.alert('Grabando', 'La grabación ha comenzado.');
         } catch (err) {
-            console.error('Error al iniciar la grabación', err);
+            console.error('Error al iniciar la grabación:', err);
         }
     };
 
     const stopRecording = async () => {
-        setMessage('Procesando grabación...');
-        recording?.stopAndUnloadAsync();
-        const uri = recording?.getURI();
-        const { sound } = await recording?.createNewLoadedSoundAsync();
-        setSound(sound);
-        setRecording(null);
-        setMessage('Grabación lista para reproducir');
-        console.log('Grabación guardada en:', uri);
+        try {
+            await recording?.stopAndUnloadAsync();
+            const uri = recording?.getURI();
+            setRecording(null);
+            setAudioUri(uri);
+            Alert.alert('Grabación completa', `Archivo generado en formato .m4a.\nUbicación: ${uri}`);
+            console.log('Archivo guardado temporalmente en:', uri);
+        } catch (err) {
+            console.error('Error al detener la grabación:', err);
+        }
     };
 
-    const playSound = async () => {
-        try {
-            await sound?.replayAsync();
-        } catch (err) {
-            console.error('Error al reproducir', err);
+    const playRecording = async () => {
+        if (!audioUri) {
+            Alert.alert('No hay grabación', 'No se encontró ningún archivo para reproducir.');
+            return;
+        }
+
+        const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
+        await sound.playAsync();
+        Alert.alert('Reproduciendo', 'El archivo se está reproduciendo.');
+    };
+
+    const shareRecording = async () => {
+        if (audioUri) {
+            if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(audioUri);
+            } else {
+                Alert.alert('Compartir no disponible', 'La función de compartir no está disponible en este dispositivo.');
+            }
+        } else {
+            Alert.alert('No hay grabación', 'No se encontró ningún archivo para compartir.');
         }
     };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.message}>{message}</Text>
+            <Text style={styles.message}>Grabador de voz</Text>
             <View style={styles.buttonContainer}>
                 {!recording ? (
                     <Button title="Iniciar Grabación" onPress={startRecording} color="#4CAF50" />
@@ -50,10 +67,15 @@ export default function App() {
                     <Button title="Detener Grabación" onPress={stopRecording} color="#F44336" />
                 )}
             </View>
-            {sound && (
-                <View style={styles.buttonContainer}>
-                    <Button title="Reproducir Grabación" onPress={playSound} color="#2196F3" />
-                </View>
+            {audioUri && (
+                <>
+                    <View style={styles.buttonContainer}>
+                        <Button title="Reproducir Grabación" onPress={playRecording} color="#2196F3" />
+                    </View>
+                    <View style={styles.buttonContainer}>
+                        <Button title="Descargar/Compartir" onPress={shareRecording} color="#FF9800" />
+                    </View>
+                </>
             )}
         </View>
     );
@@ -68,19 +90,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#F5F5F5',
     },
     message: {
-        fontSize: 18,
+        fontSize: 20,
         marginBottom: 20,
-        textAlign: 'center',
         color: '#333',
     },
     buttonContainer: {
+        marginVertical: 10,
         width: '80%',
-        marginVertical: 10, // Separación entre botones
-        borderRadius: 10,
-        overflow: 'hidden',
-    },
-    button: {
-        height: 60, // Altura del botón
-        justifyContent: 'center',
     },
 });
